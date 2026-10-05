@@ -331,6 +331,13 @@ function showJobDetailsModal(job) {
         job.salary_min ? `From $${job.salary_min.toLocaleString()}` :
         job.salary_max ? `Up to $${job.salary_max.toLocaleString()}` : 'Salary not specified';
 
+    const isEligible = job.user_eligible !== false;
+    const applyActionHTML = job.user_applied
+        ? `<span class="application-status status-${job.application_status}">Already Applied</span>`
+        : isEligible
+            ? `<button class="btn btn-primary apply-job-btn" data-job-id="${job.id}">Apply Now</button>`
+            : `<button class="btn btn-secondary apply-job-btn" data-job-id="${job.id}" disabled>Not Eligible</button>`;
+
     modal.innerHTML = `
         <div class="modal-content large-modal">
             <button class="modal-close-btn">&times;</button>
@@ -414,11 +421,8 @@ function showJobDetailsModal(job) {
                 ` : ''}
 
                 <div class="job-actions">
-                    ${createTakeInterviewButtonHTML(job, job.user_eligible !== false)}
-                    ${!job.user_applied ?
-                        `<button class="btn btn-primary apply-job-btn" data-job-id="${job.id}">Apply Now</button>` :
-                        `<span class="application-status status-${job.application_status}">Already Applied</span>`
-                    }
+                    ${createTakeInterviewButtonHTML(job, isEligible)}
+                    ${applyActionHTML}
                     <button class="btn btn-secondary modal-cancel-btn">Close</button>
                 </div>
             </div>
@@ -428,7 +432,7 @@ function showJobDetailsModal(job) {
     document.body.appendChild(modal);
 
     // Add event listener for the modal's own "Apply Now" button
-    const applyBtnInModal = modal.querySelector('.apply-job-btn');
+    const applyBtnInModal = modal.querySelector('.apply-job-btn:not([disabled])');
     if (applyBtnInModal) {
         applyBtnInModal.addEventListener('click', () => {
             const jobId = parseInt(applyBtnInModal.dataset.jobId);

@@ -194,6 +194,7 @@ export function openJobPostingModal(jobId = null) {
                             <option value="">No interview</option>
                         </select>
                         <p class="job-meta">Create questionnaires under Hire → Interviews, then attach one here.</p>
+                        <p class="job-meta" id="job-test-locked-note" style="display:none;">This questionnaire cannot be changed because candidates have already submitted interviews.</p>
                     </div>
                 </div>
 
@@ -456,12 +457,16 @@ export async function handleJobSubmission(e) {
         employment_type: formData.get('employment_type'),
         employment_arrangement: formData.get('employment_arrangement'),
         application_deadline: formData.get('application_deadline') || null,
-        test_id: formData.get('test_id') || null,
         required_skills: [],
         required_experiences: [],
         required_certificates: [],
         required_degrees: []
     };
+
+    const testSelect = form.querySelector('[name="test_id"]');
+    if (!testSelect || !testSelect.disabled) {
+        jobData.test_id = formData.get('test_id') || null;
+    }
 
     // Collect requirements
     form.querySelectorAll('#skills-list .requirement-item').forEach(item => {
@@ -554,6 +559,11 @@ export async function loadJobForEditing(jobId, form) {
         const testSelect = form.querySelector('[name="test_id"]');
         if (testSelect && job.test_id) {
             testSelect.value = String(job.test_id);
+        }
+        if (testSelect && job.has_interview_submissions) {
+            testSelect.disabled = true;
+            const lockedNote = form.querySelector('#job-test-locked-note');
+            if (lockedNote) lockedNote.style.display = 'block';
         }
 
         // Load requirements

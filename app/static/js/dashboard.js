@@ -376,7 +376,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Job Seeker Actions
         if (event.target.closest('.apply-job-btn')) {
-            const jobId = parseInt(event.target.closest('.apply-job-btn').dataset.jobId);
+            const btn = event.target.closest('.apply-job-btn');
+            if (btn.disabled) return;
+            const jobId = parseInt(btn.dataset.jobId);
             openApplicationModal(jobId);
             return;
         }

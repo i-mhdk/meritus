@@ -1,5 +1,18 @@
 import { dom } from './state.js';
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function escapeMultilineHtml(value) {
+    return escapeHtml(value).replace(/\n/g, '<br>');
+}
+
 function createTestCardHTML(test) {
     const typeMap = { 'Q': 'Questionnaire', 'T': 'Exam' };
     const displayType = typeMap[test.test_type] || test.test_type;
@@ -8,7 +21,7 @@ function createTestCardHTML(test) {
     return `
         <div class="job-item" data-test-id="${test.id}">
             <div class="job-header">
-                <h4>${test.title}</h4>
+                <h4>${escapeHtml(test.title)}</h4>
                 <span class="job-status status-draft">${displayType}</span>
             </div>
             <div class="job-details">
@@ -239,9 +252,9 @@ export async function openTestSubmissions(testId) {
         const rows = (data.submissions || []).map(s => `
             <div class="submission-list-item">
                 <div>
-                    <strong>${s.submitter_name}</strong>
-                    <div class="job-meta">${s.submitter_email}</div>
-                    <div class="job-meta">${s.job_title || 'Job'} • ${s.submitted_at || ''}</div>
+                    <strong>${escapeHtml(s.submitter_name)}</strong>
+                    <div class="job-meta">${escapeHtml(s.submitter_email)}</div>
+                    <div class="job-meta">${escapeHtml(s.job_title || 'Job')} • ${escapeHtml(s.submitted_at || '')}</div>
                 </div>
                 <button class="btn btn-secondary view-submission-detail-btn" data-submission-id="${s.id}">View Answers</button>
             </div>
@@ -250,7 +263,7 @@ export async function openTestSubmissions(testId) {
         modal.innerHTML = `
             <div class="modal-content large-modal">
                 <button class="modal-close-btn">&times;</button>
-                <h2>Submissions — ${data.test.title}</h2>
+                <h2>Submissions — ${escapeHtml(data.test.title)}</h2>
                 <div id="submissions-list" class="submissions-list">${rows}</div>
                 <div id="submission-detail" class="submission-detail" style="display:none;"></div>
                 <div class="form-actions">
@@ -294,21 +307,28 @@ async function openSubmissionDetail(submissionId, parentModal) {
                     let classes = 'review-option';
                     if (selected) classes += ' selected';
                     if (correct) classes += ' correct-key';
-                    return `<div class="${classes}">${opt.option_text || opt.answer_text}${selected ? ' ← candidate' : ''}${correct ? ' ✓ key' : ''}</div>`;
+                    const optionLabel = escapeHtml(opt.option_text || opt.answer_text);
+                    return `<div class="${classes}">${optionLabel}${selected ? ' ← candidate' : ''}${correct ? ' ✓ key' : ''}</div>`;
                 }).join('');
                 return `
                     <div class="review-question">
-                        <h4>Q${index + 1}. ${q.question_text}</h4>
+                        <h4>Q${index + 1}. ${escapeHtml(q.question_text)}</h4>
                         <p class="job-meta">Multiple choice</p>
                         ${optionsHTML}
                     </div>`;
             }
+            const candidateAnswer = q.text_response
+                ? escapeMultilineHtml(q.text_response)
+                : '<em>No answer</em>';
+            const expectedAnswer = q.expected_answer
+                ? escapeMultilineHtml(q.expected_answer)
+                : '<em>None provided</em>';
             return `
                 <div class="review-question">
-                    <h4>Q${index + 1}. ${q.question_text}</h4>
+                    <h4>Q${index + 1}. ${escapeHtml(q.question_text)}</h4>
                     <p class="job-meta">Descriptive</p>
-                    <div class="review-response"><strong>Candidate:</strong><br>${q.text_response || '<em>No answer</em>'}</div>
-                    <div class="review-expected"><strong>Expected:</strong><br>${q.expected_answer || '<em>None provided</em>'}</div>
+                    <div class="review-response"><strong>Candidate:</strong><br>${candidateAnswer}</div>
+                    <div class="review-expected"><strong>Expected:</strong><br>${expectedAnswer}</div>
                 </div>`;
         }).join('');
 
@@ -316,8 +336,8 @@ async function openSubmissionDetail(submissionId, parentModal) {
         list.style.display = 'none';
         container.innerHTML = `
             <button type="button" class="btn btn-secondary" id="back-to-submissions">← Back to list</button>
-            <h3>${detail.submitter_name}</h3>
-            <p class="job-meta">${detail.job_title} • ${detail.submitted_at || ''}</p>
+            <h3>${escapeHtml(detail.submitter_name)}</h3>
+            <p class="job-meta">${escapeHtml(detail.job_title)} • ${escapeHtml(detail.submitted_at || '')}</p>
             ${questionsHTML}
         `;
         container.querySelector('#back-to-submissions').addEventListener('click', () => {
@@ -357,19 +377,19 @@ export async function openTakeInterviewModal(jobId) {
                 const options = (q.options || []).map(opt => `
                     <label class="take-option">
                         <input type="radio" name="question_${q.id}" value="${opt.id}" required>
-                        <span>${opt.option_text}</span>
+                        <span>${escapeHtml(opt.option_text)}</span>
                     </label>
                 `).join('');
                 return `
                     <div class="take-question" data-question-id="${q.id}" data-question-type="M">
-                        <h4>Q${index + 1}. ${q.question_text}</h4>
+                        <h4>Q${index + 1}. ${escapeHtml(q.question_text)}</h4>
                         <div class="take-options">${options}</div>
                     </div>`;
             }
             const limit = q.char_limit || 1000;
             return `
                 <div class="take-question" data-question-id="${q.id}" data-question-type="D" data-char-limit="${limit}">
-                    <h4>Q${index + 1}. ${q.question_text}</h4>
+                    <h4>Q${index + 1}. ${escapeHtml(q.question_text)}</h4>
                     <textarea name="question_${q.id}" rows="4" maxlength="${limit}" required placeholder="Your answer..."></textarea>
                     <div class="char-counter"><span class="chars-used">0</span> / ${limit}</div>
                 </div>`;
@@ -378,8 +398,8 @@ export async function openTakeInterviewModal(jobId) {
         modal.innerHTML = `
             <div class="modal-content large-modal">
                 <button class="modal-close-btn">&times;</button>
-                <h2>Interview: ${data.test.title}</h2>
-                <p class="job-meta">For job: ${data.job_title}</p>
+                <h2>Interview: ${escapeHtml(data.test.title)}</h2>
+                <p class="job-meta">For job: ${escapeHtml(data.job_title)}</p>
                 <form id="take-interview-form" class="modal-form">
                     ${questionsHTML || '<p class="empty-list-msg">This questionnaire has no questions.</p>'}
                     <div class="form-actions">

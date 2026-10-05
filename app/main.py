@@ -9,7 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import os
 from dotenv import load_dotenv
 from sqlalchemy.sql import func
-from sqlalchemy import or_, inspect as sa_inspect
+from sqlalchemy import or_
 import enum
 # from .models import User, JobApplication
 
@@ -587,7 +587,10 @@ class TestSubmission(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     submitted_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
 
-    job = db.relationship('JobPosting', backref='test_submissions')
+    job = db.relationship(
+        'JobPosting',
+        backref=db.backref('test_submissions', lazy=True, cascade='all, delete-orphan')
+    )
     submitter = db.relationship('User', backref='test_submissions')
     answers = db.relationship(
         'SubmissionAnswer', backref='submission', lazy=True, cascade="all, delete-orphan"
@@ -721,14 +724,43 @@ def _persist_questions(test, questions_data):
 
 def _assign_test_to_job(job, test_id):
     if test_id in (None, '', 0, '0'):
+        new_test_id = None
+    else:
+        new_test_id = int(test_id)
+
+    if job.test_id == new_test_id:
+        return
+
+    if job.id is not None and TestSubmission.query.filter_by(job_id=job.id).first():
+        raise ValueError(
+            'Cannot change or remove the questionnaire after candidates have submitted interviews.'
+        )
+
+    if new_test_id is None:
         job.test_id = None
         return
-    test = Test.query.get(int(test_id))
+
+    test = Test.query.get(new_test_id)
     if not test or test.user_id != current_user.id:
         raise ValueError('Select a questionnaire you created.')
     if test.test_type != 'Q':
         raise ValueError('Only questionnaires can be attached to a job right now.')
     job.test_id = test.id
+
+
+def _seeker_job_flags(job, user_id):
+    application = JobApplication.query.filter_by(user_id=user_id, job_id=job.id).first()
+    interview_submitted = False
+    if job.test_id:
+        interview_submitted = TestSubmission.query.filter_by(
+            user_id=user_id, job_id=job.id, test_id=job.test_id
+        ).first() is not None
+    return {
+        'user_applied': application is not None,
+        'application_status': application.status if application else None,
+        'user_eligible': _is_eligible_for_job(job, _eligibility_profile(user_id)),
+        'interview_submitted': interview_submitted,
+    }
 
 
 def _eligibility_profile(user_id):
@@ -1718,9 +1750,10 @@ def browse_jobs():
         user_applied_job_ids = {app.job_id for app in
                                 JobApplication.query.filter_by(user_id=current_user.id).with_entities(
                                     JobApplication.job_id).all()}
-        user_submitted_interview_job_ids = {
-            s.job_id for s in TestSubmission.query.filter_by(user_id=current_user.id).with_entities(
-                TestSubmission.job_id
+        user_submitted_interviews = {
+            (s.job_id, s.test_id)
+            for s in TestSubmission.query.filter_by(user_id=current_user.id).with_entities(
+                TestSubmission.job_id, TestSubmission.test_id
             ).all()
         }
 
@@ -1806,7 +1839,9 @@ def browse_jobs():
                 job_dict = job.to_dict()
                 job_dict['user_applied'] = job.id in user_applied_job_ids
                 job_dict['user_eligible'] = is_eligible
-                job_dict['interview_submitted'] = job.id in user_submitted_interview_job_ids
+                job_dict['interview_submitted'] = (
+                    job.test_id is not None and (job.id, job.test_id) in user_submitted_interviews
+                )
                 job_list.append(job_dict)
 
         return jsonify(job_list), 200
@@ -1824,7 +1859,12 @@ def get_job(job_id):
     job = JobPosting.query.get_or_404(job_id)
     if job.posted_by != current_user.id and job.status != 'active':
         return jsonify({"error": "Unauthorized"}), 403
-    return jsonify(job.to_dict())
+    job_dict = job.to_dict()
+    if job.posted_by == current_user.id:
+        job_dict['has_interview_submissions'] = bool(job.test_submissions)
+    else:
+        job_dict.update(_seeker_job_flags(job, current_user.id))
+    return jsonify(job_dict)
 
 
 @app.route('/api/jobs/<int:job_id>', methods=['PUT'])
@@ -1923,9 +1963,14 @@ def delete_job(job_id):
     if job.posted_by != current_user.id:
         return jsonify({"error": "Unauthorized"}), 403
 
-    db.session.delete(job)
-    db.session.commit()
-    return jsonify({"message": "Job deleted successfully"})
+    try:
+        db.session.delete(job)
+        db.session.commit()
+        return jsonify({"message": "Job deleted successfully"})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error deleting job: {e}")
+        return jsonify({"error": "Failed to delete job"}), 500
 
 
 @app.route('/api/jobs/<int:job_id>/status', methods=['PUT'])
@@ -2307,16 +2352,6 @@ def mark_notification_as_read(notification_id):
     notification.is_read = True
     db.session.commit()
     return jsonify({'message': f'Notification {notification_id} marked as read'})
-
-
-@app.route('/migrate-db')
-def migrate_db():
-    """Temporary route to create new tables - remove after use"""
-    try:
-        db.create_all()
-        return "Database tables created successfully!"
-    except Exception as e:
-        return f"Error creating tables: {str(e)}"
 
 
 if __name__ == '__main__':
