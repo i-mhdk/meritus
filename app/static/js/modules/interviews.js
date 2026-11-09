@@ -165,7 +165,7 @@ export function addQuestionToForm(type, data = {}) {
                 <label class="mc-options-label">Answer Options (Select the radio button for the correct answer)</label>
                 <div class="mc-options-list" data-group-name="correct_answer_${uniqueId}">${answersHTML}</div>
                 <span class="error-text options-error">At least 2 options are required.</span>
-                <span class="error-text correct-answer-error" style="display:none; color: #dc3545; font-size: 0.85em; margin-top: 5px;">Please select one correct answer.</span>
+                <span class="error-text correct-answer-error" style="display:none; color: #DC2626; font-size: 0.85em; margin-top: 5px;">Please select one correct answer.</span>
                 <button type="button" class="btn btn-secondary add-mc-option-btn">+ Add Option</button>
             </div>
             <input type="hidden" name="q_type" value="M">
