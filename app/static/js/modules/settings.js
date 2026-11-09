@@ -53,7 +53,7 @@ async function loadNotificationSettings() {
                     <span style="margin-left: 0.5rem;">Email and In App</span>
                 </div>
             </div>
-            <div id="notification-save-status" style="text-align: right; height: 1em; margin-top: 0.5rem; font-size: 0.8rem; color: #6c757d;"></div>
+            <div id="notification-save-status" style="text-align: right; height: 1em; margin-top: 0.5rem; font-size: 0.8rem; color: #64748B;"></div>
         `;
 
         setupNotificationSettingsEventListeners();
@@ -213,7 +213,7 @@ async function saveNotificationSettings() {
     if (!toggle || !statusDiv) return;
 
     statusDiv.textContent = 'Saving...';
-    statusDiv.style.color = '#6c757d'; // Muted color
+    statusDiv.style.color = '#64748B'; // Muted color
 
     try {
         const deliveryMethod = toggle.checked ? 'email_and_in_app' : 'in_app';
